@@ -6,22 +6,18 @@ use winit::{
 };
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
+    use wgpu::*;
+    event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
     let mut size = window.inner_size();
     size.width = size.width.max(1);
     size.height = size.height.max(1);
 
-    let instance = wgpu::Instance::default();
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN, flags: wgpu::InstanceFlags::DEBUG | wgpu::InstanceFlags::VALIDATION, ..Default::default() });
 
     let surface = instance.create_surface(&window).unwrap();
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            force_fallback_adapter: false,
-            // Request an adapter which can render to our surface
-            compatible_surface: Some(&surface),
-        })
-        .await
-        .expect("Failed to find an appropriate adapter");
+    let mut result = instance.enumerate_adapters(Backends::all());
+    println!("GOT {:?}", result.iter().map(|x| x.get_info()).collect::<Vec<_>>());
+    let adapter = result.remove(0);
 
     // Create the logical device and command queue
     let (device, queue) = adapter
@@ -30,8 +26,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 label: None,
                 required_features: wgpu::Features::empty(),
                 // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
-                    .using_resolution(adapter.limits()),
+                required_limits: wgpu::Limits::default(),
             },
             None,
         )
@@ -72,10 +67,19 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         multiview: None,
     });
 
-    let mut config = surface
-        .get_default_config(&adapter, size.width, size.height)
-        .unwrap();
+    let mut config = SurfaceConfiguration {
+        usage: TextureUsages::RENDER_ATTACHMENT,
+        desired_maximum_frame_latency: 2,
+        format: swapchain_format,
+        width: window.inner_size().width,
+        height: window.inner_size().height,
+        present_mode: wgpu::PresentMode::Mailbox,
+        alpha_mode: if swapchain_capabilities.alpha_modes.contains(&CompositeAlphaMode::Opaque) { CompositeAlphaMode::Opaque } else { CompositeAlphaMode::Inherit },
+        view_formats: vec!()
+    };
     surface.configure(&device, &config);
+
+    let mut frame_count = 1;
 
     let window = &window;
     event_loop
@@ -84,6 +88,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             // `event_loop.run` never returns, therefore we must do this to ensure
             // the resources are properly cleaned up.
             let _ = (&instance, &adapter, &shader, &pipeline_layout);
+
+            if let Event::NewEvents(_) = event {
+                window.request_redraw();
+            }
 
             if let Event::WindowEvent {
                 window_id: _,
@@ -100,6 +108,13 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         window.request_redraw();
                     }
                     WindowEvent::RedrawRequested => {
+                        if frame_count % 200 == 0 && config.present_mode != wgpu::PresentMode::Immediate {
+                            let mode = swapchain_capabilities.present_modes[(frame_count / 200) % swapchain_capabilities.present_modes.len()];
+                            println!("MODE {:?} => {:?}", config.present_mode, wgpu::PresentMode::Immediate);
+                            config.present_mode = wgpu::PresentMode::Immediate;
+                            surface.configure(&device, &config);
+                        }
+
                         let frame = surface
                             .get_current_texture()
                             .expect("Failed to acquire next swap chain texture");
@@ -118,7 +133,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                                         view: &view,
                                         resolve_target: None,
                                         ops: wgpu::Operations {
-                                            load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                                            load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.0, g: (frame_count as f64 * 0.01).sin(), b: 0.0, a: 1.0 }),
                                             store: wgpu::StoreOp::Store,
                                         },
                                     })],
@@ -132,6 +147,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
                         queue.submit(Some(encoder.finish()));
                         frame.present();
+                        frame_count += 1;
                     }
                     WindowEvent::CloseRequested => target.exit(),
                     _ => {}
