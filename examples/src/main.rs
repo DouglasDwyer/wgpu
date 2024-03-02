@@ -149,6 +149,7 @@ const EXAMPLES: &[ExampleDesc] = &[
 ];
 
 fn get_example_name() -> Option<String> {
+    return Some("hello_triangle".to_string());
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             let query_string = web_sys::window()?.location().search().ok()?;

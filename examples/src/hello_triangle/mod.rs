@@ -71,8 +71,8 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         usage: TextureUsages::RENDER_ATTACHMENT,
         desired_maximum_frame_latency: 2,
         format: swapchain_format,
-        width: window.inner_size().width,
-        height: window.inner_size().height,
+        width: 800,
+        height: 600,
         present_mode: wgpu::PresentMode::Mailbox,
         alpha_mode: if swapchain_capabilities.alpha_modes.contains(&CompositeAlphaMode::Opaque) { CompositeAlphaMode::Opaque } else { CompositeAlphaMode::Inherit },
         view_formats: vec!()

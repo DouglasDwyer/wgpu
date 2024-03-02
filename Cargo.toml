@@ -40,7 +40,7 @@ default-members = [
 
 [workspace.package]
 edition = "2021"
-rust-version = "1.70"
+#rust-version = "1.70"
 keywords = ["graphics"]
 license = "MIT OR Apache-2.0"
 homepage = "https://wgpu.rs/"
