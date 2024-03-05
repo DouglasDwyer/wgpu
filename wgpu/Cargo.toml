@@ -33,7 +33,7 @@ default = ["wgsl", "dx12", "metal", "webgpu"]
 #! See [#3514](https://github.com/gfx-rs/wgpu/issues/3514) for more details.
 
 ## Enables the DX12 backend on Windows.
-dx12 = ["wgc?/dx12"]
+dx12 = ["wgc?/dx12","hal/dxc_shader_compiler"]
 
 ## Enables the Metal backend on macOS & iOS.
 metal = ["wgc?/metal"]
@@ -124,7 +124,6 @@ workspace = true
 # We want the wgpu-core Direct3D backend and OpenGL (via WGL) on Windows.
 [target.'cfg(windows)'.dependencies.wgc]
 workspace = true
-features = ["gles"]
 
 # We want the wgpu-core Vulkan backend on Unix (but not emscripten, macOS, iOS) and Windows.
 [target.'cfg(any(windows, all(unix, not(target_os = "emscripten"), not(target_os = "ios"), not(target_os = "macos"))))'.dependencies.wgc]
@@ -148,7 +147,6 @@ hal = { workspace = true, features = ["renderdoc"] }
 
 [target.'cfg(windows)'.dependencies]
 hal = { workspace = true, features = [
-    "dxc_shader_compiler",
     "renderdoc",
     "windows_rs",
 ] }
