@@ -73,6 +73,9 @@ glsl = ["naga/glsl-in", "wgc/glsl"]
 ## Enable accepting WGSL shaders as input.
 wgsl = ["wgc?/wgsl"]
 
+## Enables the static DXC compiler using the `mach-dxcompiler-rs` crate.
+mach-dxcompiler-rs = ["hal/mach-dxcompiler-rs"]
+
 ## Enable accepting naga IR shaders as input.
 naga-ir = ["dep:naga"]
 

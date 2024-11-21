@@ -80,10 +80,22 @@ impl crate::Instance for super::Instance {
                 dxil_path,
                 dxc_path,
             } => {
-                let container = super::shader_compilation::get_dxc_container(dxc_path, dxil_path)
-                    .map_err(|e| {
-                    crate::InstanceError::with_source(String::from("Failed to load DXC"), e)
-                })?;
+                let container =
+                    super::shader_compilation::get_dynamic_dxc_container(dxc_path, dxil_path)
+                        .map_err(|e| {
+                            crate::InstanceError::with_source(String::from("Failed to load DXC"), e)
+                        })?;
+
+                container.map(Arc::new)
+            }
+            wgt::Dx12Compiler::MachDxc => {
+                let container =
+                    super::shader_compilation::get_mach_dxc_container().map_err(|e| {
+                        crate::InstanceError::with_source(
+                            String::from("Failed to load Mach DXC"),
+                            e,
+                        )
+                    })?;
 
                 container.map(Arc::new)
             }

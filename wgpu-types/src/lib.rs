@@ -7401,6 +7401,9 @@ pub enum Dx12Compiler {
         /// Path to the `dxcompiler.dll` file, or path to the directory containing `dxcompiler.dll` file. Passing `None` will use standard platform specific dll loading rules.
         dxc_path: Option<PathBuf>,
     },
+    /// The statically-linked variant of Dxc, sourced from the [`mach-dxcompiler-rs`](https://crates.io/crates/mach-dxcompiler-rs) crate.
+    /// The `mach-dxcompiler-rs` feature is required to use this.
+    MachDxc,
 }
 
 /// Selects which OpenGL ES 3 minor version to request.
