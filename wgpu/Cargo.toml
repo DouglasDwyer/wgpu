@@ -153,13 +153,8 @@ features = ["indirect-validation"]
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.wgc]
 workspace = true
 
-# We want the wgpu-core Direct3D backend and OpenGL (via WGL) on Windows.
-[target.'cfg(windows)'.dependencies.wgc]
-workspace = true
-features = ["gles"]
-
 # We want the wgpu-core Vulkan backend on Unix (but not emscripten, macOS, iOS) and Windows.
-[target.'cfg(any(windows, all(unix, not(target_os = "emscripten"), not(target_os = "ios"), not(target_os = "macos"))))'.dependencies.wgc]
+[target.'cfg(all(unix, not(target_os = "emscripten"), not(target_os = "ios"), not(target_os = "macos")))'.dependencies.wgc]
 workspace = true
 features = ["vulkan"]
 
