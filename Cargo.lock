@@ -1780,12 +1780,9 @@ dependencies = [
 
 [[package]]
 name = "mach-dxcompiler-rs"
-version = "2023.12.14+0b7073b.1"
+version = "0.1.0+2024.11.22-df583a3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b7857414cb65eb5f03cf0365ac801f089fdbfbb0c47f3f257941eda735aebdf"
-dependencies = [
- "windows-core",
-]
+checksum = "f1adb8f5a21376264c903e4b6b0b5deb97236ccf8c49d9bd7e557bfe7d241388"
 
 [[package]]
 name = "malloc_buf"

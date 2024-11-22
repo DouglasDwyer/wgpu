@@ -78,12 +78,6 @@ pub(super) fn compile_fxc(
     }
 }
 
-type DxcCreateInstanceFn = unsafe extern "system" fn(
-    rclsid: *const windows_core::GUID,
-    riid: *const windows_core::GUID,
-    ppv: *mut *mut core::ffi::c_void,
-) -> windows_core::HRESULT;
-
 trait DxcObj: Interface {
     const CLSID: windows::core::GUID;
 }
@@ -121,22 +115,33 @@ impl DxcLib {
 
     pub fn create_instance<T: DxcObj>(&self) -> Result<T, crate::DeviceError> {
         unsafe {
+            type DxcCreateInstanceFn = unsafe extern "system" fn(
+                rclsid: *const windows_core::GUID,
+                riid: *const windows_core::GUID,
+                ppv: *mut *mut core::ffi::c_void,
+            )
+                -> windows_core::HRESULT;
+
             let func: libloading::Symbol<DxcCreateInstanceFn> =
                 self.lib.get(b"DxcCreateInstance\0")?;
-            dxc_create_instance::<T>(*func)
+            dxc_create_instance::<T>(|clsid, iid, ppv| func(clsid, iid, ppv))
         }
     }
 }
 
 /// Invokes the provided library function to create a DXC object.
-unsafe fn dxc_create_instance<T: DxcObj>(f: DxcCreateInstanceFn) -> Result<T, crate::DeviceError> {
-    unsafe {
-        let mut result__ = None;
-        f(&T::CLSID, &T::IID, <*mut _>::cast(&mut result__))
-            .ok()
-            .into_device_result("DxcCreateInstance")?;
-        result__.ok_or(crate::DeviceError::Unexpected)
-    }
+unsafe fn dxc_create_instance<T: DxcObj>(
+    f: impl Fn(
+        *const windows_core::GUID,
+        *const windows_core::GUID,
+        *mut *mut core::ffi::c_void,
+    ) -> windows_core::HRESULT,
+) -> Result<T, crate::DeviceError> {
+    let mut result__ = None;
+    f(&T::CLSID, &T::IID, <*mut _>::cast(&mut result__))
+        .ok()
+        .into_device_result("DxcCreateInstance")?;
+    result__.ok_or(crate::DeviceError::Unexpected)
 }
 
 // Destructor order should be fine since _dxil and _dxc don't rely on each other.
@@ -198,10 +203,20 @@ pub(super) fn get_mach_dxc_container() -> Result<Option<DxcContainer>, crate::De
     #[cfg(feature = "mach-dxcompiler-rs")]
     {
         unsafe {
-            let compiler =
-                dxc_create_instance::<Dxc::IDxcCompiler3>(mach_dxcompiler_rs::DxcCreateInstance)?;
-            let utils =
-                dxc_create_instance::<Dxc::IDxcUtils>(mach_dxcompiler_rs::DxcCreateInstance)?;
+            let compiler = dxc_create_instance::<Dxc::IDxcCompiler3>(|clsid, iid, ppv| {
+                windows_core::HRESULT(mach_dxcompiler_rs::DxcCreateInstance(
+                    clsid.cast(),
+                    iid.cast(),
+                    ppv,
+                ))
+            })?;
+            let utils = dxc_create_instance::<Dxc::IDxcUtils>(|clsid, iid, ppv| {
+                windows_core::HRESULT(mach_dxcompiler_rs::DxcCreateInstance(
+                    clsid.cast(),
+                    iid.cast(),
+                    ppv,
+                ))
+            })?;
 
             Ok(Some(DxcContainer {
                 compiler,
