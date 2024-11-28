@@ -300,8 +300,11 @@ pub(super) fn compile_dxc(
         windows::core::w!("2018"), // Use HLSL 2018, Naga doesn't supported 2021 yet.
         windows::core::w!("-no-warnings"),
         Dxc::DXC_ARG_ENABLE_STRICTNESS,
-        Dxc::DXC_ARG_SKIP_VALIDATION, // Disable implicit validation to work around bugs when dxil.dll isn't in the local directory.
     ]);
+
+    if dxc_container.validator.is_some() {
+        compile_args.push(Dxc::DXC_ARG_SKIP_VALIDATION); // Disable implicit validation to work around bugs when dxil.dll isn't in the local directory.)
+    }
 
     if device
         .private_caps
