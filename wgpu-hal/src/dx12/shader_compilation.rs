@@ -198,9 +198,9 @@ pub(super) fn get_dynamic_dxc_container(
     }))
 }
 
-/// Creates a [`DxcContainer`] that delegates to the statically-linked `mach-dxcompiler` library.
-pub(super) fn get_mach_dxc_container() -> Result<Option<DxcContainer>, crate::DeviceError> {
-    #[cfg(feature = "mach-dxcompiler-rs")]
+/// Creates a [`DxcContainer`] that delegates to the statically-linked version of DXC.
+pub(super) fn get_static_dxc_container() -> Result<Option<DxcContainer>, crate::DeviceError> {
+    #[cfg(feature = "static-dxc")]
     {
         unsafe {
             let compiler = dxc_create_instance::<Dxc::IDxcCompiler3>(|clsid, iid, ppv| {
@@ -227,9 +227,9 @@ pub(super) fn get_mach_dxc_container() -> Result<Option<DxcContainer>, crate::De
             }))
         }
     }
-    #[cfg(not(feature = "mach-dxcompiler-rs"))]
+    #[cfg(not(feature = "static-dxc"))]
     {
-        panic!("Attempted to create a Mach DXC shader compiler, but the mach-dxcompiler-rs feature was not enabled")
+        panic!("Attempted to create a static DXC shader compiler, but the static-dxc feature was not enabled")
     }
 }
 

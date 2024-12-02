@@ -91,8 +91,8 @@ dx12 = [
     "windows/Win32_System_Threading",
     "windows/Win32_UI_WindowsAndMessaging",
 ]
-## Enables the static DXC compiler using the `mach-dxcompiler-rs` crate.
-mach-dxcompiler-rs = ["dep:mach-dxcompiler-rs"]
+## Enables statically linking DXC.
+static-dxc = ["dep:mach-dxcompiler-rs"]
 renderdoc = ["dep:libloading", "dep:renderdoc-sys"]
 fragile-send-sync-non-atomic-wasm = ["wgt/fragile-send-sync-non-atomic-wasm"]
 # Panic when running into an out-of-memory error (for debugging purposes).
