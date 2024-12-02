@@ -111,6 +111,8 @@ pub fn dx12_shader_compiler_from_env() -> Option<wgt::Dx12Compiler> {
                 dxil_path: None,
                 dxc_path: None,
             },
+            #[cfg(feature = "static-dxc")]
+            Ok("static-dxc") => wgt::Dx12Compiler::StaticDxc,
             Ok("fxc") => wgt::Dx12Compiler::Fxc,
             _ => return None,
         },
