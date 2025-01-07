@@ -290,8 +290,8 @@ pub(super) fn compile_dxc(
         .instance_flags
         .contains(wgt::InstanceFlags::DEBUG)
     {
-        compile_args.push(Dxc::DXC_ARG_DEBUG);
-        compile_args.push(Dxc::DXC_ARG_SKIP_OPTIMIZATIONS);
+        //compile_args.push(Dxc::DXC_ARG_DEBUG);
+        //compile_args.push(Dxc::DXC_ARG_SKIP_OPTIMIZATIONS);
     }
 
     let buffer = Dxc::DxcBuffer {
