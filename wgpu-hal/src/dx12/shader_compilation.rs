@@ -285,7 +285,7 @@ pub(super) fn compile_dxc(
         compile_args.push(Dxc::DXC_ARG_SKIP_VALIDATION); // Disable implicit validation to work around bugs when dxil.dll isn't in the local directory.)
     }
 
-    if device
+    if true || device
         .private_caps
         .instance_flags
         .contains(wgt::InstanceFlags::DEBUG)
