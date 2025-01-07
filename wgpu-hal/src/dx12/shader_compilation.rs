@@ -291,7 +291,7 @@ pub(super) fn compile_dxc(
         .contains(wgt::InstanceFlags::DEBUG)
     {
         //compile_args.push(Dxc::DXC_ARG_DEBUG);
-        //compile_args.push(Dxc::DXC_ARG_SKIP_OPTIMIZATIONS);
+        compile_args.push(Dxc::DXC_ARG_ALL_RESOURCES_BOUND);
     }
 
     let buffer = Dxc::DxcBuffer {
