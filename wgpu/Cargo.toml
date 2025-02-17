@@ -166,8 +166,8 @@ static_assertions.workspace = true
 [target.'cfg(windows)'.dependencies]
 wgpu-core = { workspace = true, features = [
     "raw-window-handle",
-    "vulkan",
-    "gles",
+    #"vulkan",
+    #"gles",
 ] }
 wgpu-hal = { workspace = true, features = ["renderdoc"] }
 
