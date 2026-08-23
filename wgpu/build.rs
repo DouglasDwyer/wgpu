@@ -2,7 +2,24 @@ fn main() {
     cfg_aliases::cfg_aliases! {
         native: { not(target_arch = "wasm32") },
         Emscripten: { all(target_arch = "wasm32", target_os = "emscripten") },
-        web: { all(target_arch = "wasm32", not(Emscripten), feature = "web") },
+        // Upstream excludes Emscripten here on the assumption that an
+        // Emscripten target always wants wgpu's native GLES-over-Emscripten
+        // backend (the `gles`/`Emscripten` alias below) instead of the
+        // browser JS API. That assumption doesn't hold for a build that
+        // links `wasm32-unknown-emscripten` code directly into another
+        // WASM module via Emscripten's own `-sWASM_BINDGEN` integration
+        // (https://github.com/emscripten-core/emscripten/pull/23493,
+        // https://github.com/wasm-bindgen/wasm-bindgen/pull/4443) rather
+        // than running it as a standalone Emscripten application with a
+        // real GL/canvas context of its own -- there, `web-sys`/
+        // `wasm-bindgen` work exactly as they do on
+        // `wasm32-unknown-unknown`, so the browser WebGPU/WebGL backends
+        // are exactly what's wanted. `web` no longer excludes Emscripten;
+        // `webgl` still does below, since a real port of this project's
+        // own use case only needed `webgpu` (see the wgpu section of
+        // CsRsWasm's own root README for how this was confirmed against
+        // a real browser).
+        web: { all(target_arch = "wasm32", feature = "web") },
 
         send_sync: { any(
             native,
@@ -10,7 +27,7 @@ fn main() {
         ) },
 
         // Backends - keep this in sync with `wgpu-core/Cargo.toml` & docs in `wgpu/Cargo.toml`
-        webgpu: { all(not(native), not(Emscripten), feature = "webgpu") },
+        webgpu: { all(not(native), feature = "webgpu") },
         webgl: { all(not(native), not(Emscripten), feature = "webgl") },
         dx12: { all(target_os = "windows", feature = "dx12") },
         metal: { all(target_vendor = "apple", feature = "metal") },
