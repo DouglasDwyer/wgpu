@@ -271,6 +271,23 @@ wgpu-hal.workspace = true
 
 smallvec.workspace = true
 
+# Same as the "Webassembly" section above's js-sys/wasm-bindgen/web-sys/
+# wasm-bindgen-futures: needed for the `web`/`webgpu` backends, which (see
+# build.rs's own comment on the `web`/`webgpu` cfg aliases) this fork also
+# allows for wasm32-unknown-emscripten. Upstream only declares these as
+# optional deps under the non-Emscripten wasm32 target section above, so a
+# module gated on cfg(web)/cfg(webgpu) being true still failed to resolve
+# `js_sys`/`wasm_bindgen`/etc. as actual crates on this target even after
+# build.rs's own cfg aliases allowed the code to be considered -- confirmed
+# directly (3267 "cannot find crate" errors) before this was added.
+js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+    "HtmlCanvasElement",
+    "OffscreenCanvas",
+] }
+wasm-bindgen-futures = { workspace = true, optional = true }
+
 [target.'cfg(not(target_has_atomic = "64"))'.dependencies]
 portable-atomic.workspace = true
 
