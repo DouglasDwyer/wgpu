@@ -42,6 +42,12 @@ Bottom level categories:
 
 ## Unreleased
 
+### Bug Fixes
+
+#### DX12
+
+- Fix a 1 second stall in `Surface::get_current_texture` after a surface texture was dropped without being presented. By @DouglasDwyer.
+
 ## v30.0.1 (2026-08-21)
 
 ### Bug Fixes
