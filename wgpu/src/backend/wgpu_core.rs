@@ -58,6 +58,18 @@ impl fmt::Debug for ContextWgpuCore {
 }
 
 impl ContextWgpuCore {
+    #[cfg(noop)]
+    pub(crate) fn create_noop_surface(&self) -> Result<CoreSurface, crate::CreateSurfaceError> {
+        let id = self.0.instance_create_noop_surface(None)?;
+
+        Ok(CoreSurface {
+            context: self.clone(),
+            id,
+            configured_device: Mutex::default(),
+            error_sink: Mutex::default(),
+        })
+    }
+
     pub unsafe fn from_hal_instance<A: hal::Api>(hal_instance: A::Instance) -> Self {
         Self(unsafe {
             Arc::new(wgc::global::Global::from_hal_instance::<A>(

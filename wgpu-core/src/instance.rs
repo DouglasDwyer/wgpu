@@ -358,6 +358,20 @@ impl Instance {
         Ok(surface)
     }
 
+    /// Creates a new surface on the noop backend, which does not need any window or display handles.
+    #[cfg(feature = "noop")]
+    pub fn create_noop_surface(&self) -> Result<Arc<Surface>, CreateSurfaceError> {
+        let instance = unsafe { self.as_hal::<hal::api::Noop>() }
+            .ok_or(CreateSurfaceError::BackendNotEnabled(Backend::Noop))?;
+        let raw_surface: Box<dyn hal::DynSurface> =
+            Box::new(instance.create_surface_without_handles());
+
+        Ok(Arc::new(Surface {
+            presentation: Mutex::new(rank::SURFACE_PRESENTATION, None),
+            surface_per_backend: core::iter::once((Backend::Noop, raw_surface)).collect(),
+        }))
+    }
+
     #[cfg(dx12)]
     fn create_surface_dx12(
         &self,
@@ -1029,6 +1043,17 @@ impl Global {
     ) -> Result<SurfaceId, CreateSurfaceError> {
         let surface = unsafe { self.instance.create_surface(display_handle, window_handle) }?;
         let id = self.surfaces.prepare(id_in).assign(Arc::new(surface));
+        Ok(id)
+    }
+
+    /// Creates a new surface on the noop backend, which does not need any window or display handles.
+    #[cfg(feature = "noop")]
+    pub fn instance_create_noop_surface(
+        &self,
+        id_in: Option<SurfaceId>,
+    ) -> Result<SurfaceId, CreateSurfaceError> {
+        let surface = self.instance.create_noop_surface()?;
+        let id = self.surfaces.prepare(id_in).assign(surface);
         Ok(id)
     }
 

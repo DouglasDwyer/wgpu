@@ -472,7 +472,10 @@ impl Global {
     }
 
     pub fn surface_present(&self, surface_id: id::SurfaceId) -> Result<Status, SurfaceError> {
-        let surface = self.surfaces.get(surface_id);
+        let surface = self
+            .surfaces
+            .try_get(surface_id)
+            .ok_or(SurfaceError::Invalid)?;
 
         #[cfg(feature = "trace")]
         if let Some(present) = surface.presentation.lock().as_ref() {
@@ -485,28 +488,32 @@ impl Global {
     }
 
     pub fn surface_texture_discard(&self, surface_id: id::SurfaceId) -> Result<(), SurfaceError> {
-        let surface = self.surfaces.get(surface_id);
-
-        #[cfg(feature = "trace")]
-        if let Some(present) = surface.presentation.lock().as_ref() {
-            if let Some(ref mut trace) = *present.device.trace.lock() {
-                trace.add(Action::DiscardSurfaceTexture(surface.to_trace()));
+        if let Some(surface) = self.surfaces.try_get(surface_id) {
+            #[cfg(feature = "trace")]
+            if let Some(present) = surface.presentation.lock().as_ref() {
+                if let Some(ref mut trace) = *present.device.trace.lock() {
+                    trace.add(Action::DiscardSurfaceTexture(surface.to_trace()));
+                }
             }
-        }
 
-        surface.discard()
+            surface.discard()
+        } else {
+            Ok(())
+        }
     }
 
     pub fn surface_texture_release(&self, surface_id: id::SurfaceId) -> Result<(), SurfaceError> {
-        let surface = self.surfaces.get(surface_id);
-
-        #[cfg(feature = "trace")]
-        if let Some(present) = surface.presentation.lock().as_ref() {
-            if let Some(ref mut trace) = *present.device.trace.lock() {
-                trace.add(Action::ReleaseSurfaceTexture(surface.to_trace()));
+        if let Some(surface) = self.surfaces.try_get(surface_id) {
+            #[cfg(feature = "trace")]
+            if let Some(present) = surface.presentation.lock().as_ref() {
+                if let Some(ref mut trace) = *present.device.trace.lock() {
+                    trace.add(Action::ReleaseSurfaceTexture(surface.to_trace()));
+                }
             }
-        }
 
-        surface.release()
+            surface.release()
+        } else {
+            Ok(())
+        }
     }
 }

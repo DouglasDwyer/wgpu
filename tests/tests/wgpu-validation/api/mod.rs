@@ -11,4 +11,5 @@ mod external_texture;
 mod immediates;
 mod instance;
 mod render_pipeline;
+mod surface;
 mod texture;

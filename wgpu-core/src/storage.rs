@@ -151,6 +151,18 @@ where
         );
         result
     }
+
+    /// Get an owned reference to an item, or `None` if the entry is empty or
+    /// belongs to a different epoch.
+    pub(crate) fn try_get(&self, id: Id<T::Marker>) -> Option<T> {
+        let (index, epoch) = id.unzip();
+        match self.map.get(index as usize) {
+            Some(&Element::Occupied(ref v, storage_epoch)) if storage_epoch == epoch => {
+                Some(v.clone())
+            }
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -220,5 +232,17 @@ mod tests {
         let mut storage = Storage::new();
         storage.insert(id(0, 1), TestItem);
         storage.get(id(0, 2));
+    }
+
+    #[test]
+    fn try_get() {
+        let mut storage = Storage::<TestItem>::new();
+        assert!(storage.try_get(id(0, 1)).is_none());
+        storage.insert(id(0, 1), TestItem);
+        assert!(storage.try_get(id(0, 1)).is_some());
+        assert!(storage.try_get(id(0, 2)).is_none());
+        assert!(storage.try_get(id(1, 1)).is_none());
+        storage.remove(id(0, 1));
+        assert!(storage.try_get(id(0, 1)).is_none());
     }
 }

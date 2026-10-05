@@ -132,6 +132,10 @@ impl<T: StorageItem + Clone> Registry<T> {
     pub(crate) fn get(&self, id: Id<T::Marker>) -> T {
         self.read().get(id)
     }
+
+    pub(crate) fn try_get(&self, id: Id<T::Marker>) -> Option<T> {
+        self.read().try_get(id)
+    }
 }
 
 #[cfg(test)]

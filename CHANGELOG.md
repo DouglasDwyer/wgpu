@@ -42,7 +42,17 @@ Bottom level categories:
 
 ## Unreleased
 
+### Added/New Features
+
+#### General
+
+- Add `Instance::create_noop_surface`, which creates a surface on the noop backend without requiring window or display handles. The noop backend now supports configuring surfaces and acquiring surface textures. By @DouglasDwyer in [#10538](https://github.com/gfx-rs/wgpu/pull/10538).
+
 ### Bug Fixes
+
+#### General
+
+- Fix a panic (`Cannot get non-existent resource SurfaceId`) when a `SurfaceTexture` is dropped, or presented, after its `Surface` has been dropped. By @DouglasDwyer in [#10538](https://github.com/gfx-rs/wgpu/pull/10538).
 
 #### DX12
 
