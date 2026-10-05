@@ -612,6 +612,10 @@ struct SwapChain {
     /// Handle is freed in [`Self::release_resources()`]
     waitable: Option<Foundation::HANDLE>,
     acquired_count: usize,
+    /// Number of frame latency slots taken by acquired textures that were discarded
+    /// without being presented. Nothing signals the waitable object for these, so the
+    /// next acquires reuse the slots instead of waiting.
+    discarded_slots: usize,
     present_mode: wgt::PresentMode,
     format: wgt::TextureFormat,
     size: wgt::Extent3d,
@@ -1500,9 +1504,11 @@ impl crate::Surface for Surface {
         // For high latency extra buffers seems excessive, so go with a minimum of 3 and beyond that add 1.
         let swap_chain_buffer = (config.maximum_frame_latency + 1).min(16);
 
+        let mut discarded_slots = 0;
         let swap_chain = match self.swap_chain.write().take() {
             //Note: this path doesn't properly re-initialize all of the things
             Some(sc) => {
+                discarded_slots = sc.discarded_slots;
                 let raw = unsafe { sc.release_resources() };
                 let result = unsafe {
                     raw.ResizeBuffers(
@@ -1699,6 +1705,7 @@ impl crate::Surface for Surface {
             resources,
             waitable,
             acquired_count: 0,
+            discarded_slots,
             present_mode: config.present_mode,
             format: config.format,
             size: config.extent,
@@ -1735,7 +1742,11 @@ impl crate::Surface for Surface {
             wgt::Dx12UseFrameLatencyWaitableObject::None
             | wgt::Dx12UseFrameLatencyWaitableObject::DontWait => {}
             wgt::Dx12UseFrameLatencyWaitableObject::Wait => {
-                unsafe { sc.wait(timeout) }?;
+                if let Some(remaining) = sc.discarded_slots.checked_sub(1) {
+                    sc.discarded_slots = remaining;
+                } else {
+                    unsafe { sc.wait(timeout) }?;
+                }
             }
         }
 
@@ -1765,6 +1776,12 @@ impl crate::Surface for Surface {
         let mut swapchain = self.swap_chain.write();
         let sc = swapchain.as_mut().unwrap();
         sc.acquired_count -= 1;
+        if matches!(
+            self.options.latency_waitable_object,
+            wgt::Dx12UseFrameLatencyWaitableObject::Wait
+        ) {
+            sc.discarded_slots += 1;
+        }
     }
 }
 
