@@ -47,6 +47,7 @@ Bottom level categories:
 #### General
 
 - Add `Instance::create_noop_surface`, which creates a surface on the noop backend without requiring window or display handles. The noop backend now supports configuring surfaces and acquiring surface textures. By @DouglasDwyer in [#10538](https://github.com/gfx-rs/wgpu/pull/10538).
+- Add `StagingBelt::trim`, which drops free chunks larger than the belt's chunk size and any free chunks beyond a given count. By @DouglasDwyer in [#10577](https://github.com/gfx-rs/wgpu/pull/10577).
 
 ### Bug Fixes
 

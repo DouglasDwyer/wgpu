@@ -305,6 +305,19 @@ impl StagingBelt {
         }
     }
 
+    /// Drops free chunks larger than the `chunk_size` given to [`StagingBelt::new()`],
+    /// then drops free chunks beyond `max_free_chunks`.
+    /// Chunks that are active or still awaiting the GPU are kept, so call this after
+    /// [`StagingBelt::recall()`].
+    pub fn trim(&mut self, max_free_chunks: usize) {
+        self.receive_chunks();
+
+        let chunk_size = self.chunk_size;
+        self.free_chunks
+            .retain(|chunk| chunk.buffer.size() <= chunk_size);
+        self.free_chunks.truncate(max_free_chunks);
+    }
+
     /// Move all chunks that the GPU is done with (and are now mapped again)
     /// from `self.receiver` to `self.free_chunks`.
     fn receive_chunks(&mut self) {
