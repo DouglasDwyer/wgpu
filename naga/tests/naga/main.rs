@@ -1,3 +1,4 @@
+mod early_depth_test;
 mod example_wgsl;
 mod snapshots;
 mod spirv_capabilities;
