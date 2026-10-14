@@ -1097,6 +1097,8 @@ bitflags_array! {
         ///
         ///      - `[earlydepthstencil]` (HLSL)
         ///
+        ///      - `[[early_fragment_tests]]` (MSL 1.2+)
+        ///
         ///   2. Provide a conservative depth specifier that allows an additional early
         ///      depth test under certain conditions:
         ///
@@ -1107,11 +1109,14 @@ bitflags_array! {
         ///      - `SV_Depth<GreaterEqual/LessEqual>` (HLSL), for pipelines that are not
         ///        multisampled. Multisampled pipelines use an unrestricted `SV_Depth` instead.
         ///
+        ///      - `[[depth(greater/less)]]` (MSL, any version)
+        ///
         /// See [`EarlyDepthTest`] for more details.
         ///
         /// Supported platforms:
         /// - Vulkan
         /// - DX12
+        /// - Metal (with MSL 1.2+)
         /// - GLES 3.1+
         ///
         /// This is a native only feature.
