@@ -285,6 +285,7 @@ impl super::Device {
         layout: &super::PipelineLayout,
         naga_stage: naga::ShaderStage,
         fragment_stage: Option<&crate::ProgrammableStage<super::ShaderModule>>,
+        multisampled: bool,
     ) -> Result<super::CompiledShader, crate::PipelineError> {
         let stage_bit = auxil::map_naga_stage(naga_stage);
 
@@ -358,6 +359,7 @@ impl super::Device {
 
                 let pipeline_options = hlsl::PipelineOptions {
                     entry_point: Some((naga_stage, stage.entry_point.to_string())),
+                    multisampled,
                 };
 
                 //TODO: reuse the writer
@@ -1958,7 +1960,13 @@ impl crate::Device for super::Device {
         let blob_fs = match desc.fragment_stage {
             Some(ref stage) => {
                 shader_stages |= wgt::ShaderStages::FRAGMENT;
-                Some(self.load_shader(stage, desc.layout, naga::ShaderStage::Fragment, None)?)
+                Some(self.load_shader(
+                    stage,
+                    desc.layout,
+                    naga::ShaderStage::Fragment,
+                    None,
+                    1 < desc.multisample.count,
+                )?)
             }
             None => None,
         };
@@ -2071,6 +2079,7 @@ impl crate::Device for super::Device {
                     desc.layout,
                     naga::ShaderStage::Vertex,
                     desc.fragment_stage.as_ref(),
+                    1 < desc.multisample.count,
                 )?);
 
                 for (i, (stride, vbuf)) in vertex_strides.iter_mut().zip(vertex_buffers).enumerate()
@@ -2136,6 +2145,7 @@ impl crate::Device for super::Device {
                         desc.layout,
                         naga::ShaderStage::Task,
                         desc.fragment_stage.as_ref(),
+                        1 < desc.multisample.count,
                     )?)
                 } else {
                     None
@@ -2151,6 +2161,7 @@ impl crate::Device for super::Device {
                     desc.layout,
                     naga::ShaderStage::Mesh,
                     desc.fragment_stage.as_ref(),
+                    1 < desc.multisample.count,
                 )?);
                 stream_desc.task_shader = task_shader;
                 stream_desc.mesh_shader = blob_ms.as_ref().unwrap().create_native_shader();
@@ -2203,8 +2214,13 @@ impl crate::Device for super::Device {
             super::PipelineCache,
         >,
     ) -> Result<super::ComputePipeline, crate::PipelineError> {
-        let blob_cs =
-            self.load_shader(&desc.stage, desc.layout, naga::ShaderStage::Compute, None)?;
+        let blob_cs = self.load_shader(
+            &desc.stage,
+            desc.layout,
+            naga::ShaderStage::Compute,
+            None,
+            false,
+        )?;
 
         let pair = {
             profiling::scope!("ID3D12Device::CreateComputePipelineState");
