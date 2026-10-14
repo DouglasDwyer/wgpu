@@ -1,5 +1,5 @@
 capabilities = "EARLY_DEPTH_TEST"
-targets = "SPIRV | GLSL | HLSL"
+targets = "SPIRV | GLSL | HLSL | METAL"
 
 [glsl]
 version.Desktop = 420
