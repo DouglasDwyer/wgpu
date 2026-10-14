@@ -1254,6 +1254,7 @@ impl super::CapabilitiesQuery {
             | F::MAPPABLE_PRIMARY_BUFFERS
             | F::PASSTHROUGH_SHADERS
             | F::POLYGON_MODE_LINE
+            | F::SHADER_EARLY_DEPTH_TEST
             | F::SHADER_F16
             | F::SHADER_I16
             | F::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES

@@ -7452,7 +7452,16 @@ template <typename A>
                             } => Some(size),
                             _ => None,
                         };
-                        let resolved = options.resolve_local_binding(binding, out_mode)?;
+                        let resolved = match (
+                            options.resolve_local_binding(binding, out_mode)?,
+                            ep.early_depth_test,
+                        ) {
+                            (
+                                super::ResolvedBinding::BuiltIn(crate::BuiltIn::FragDepth),
+                                Some(crate::EarlyDepthTest::Allow { conservative }),
+                            ) => super::ResolvedBinding::ConservativeDepth(conservative),
+                            (resolved, _) => resolved,
+                        };
                         write!(self.out, "{}{} {}", back::INDENT, ty_name, name)?;
                         resolved.try_fmt(&mut self.out)?;
                         if let Some(array_len) = array_len {
@@ -7537,6 +7546,12 @@ template <typename A>
                     self.out,
                     "[[max_total_threads_per_threadgroup({total_threads})]] "
                 )?;
+            }
+
+            if ep.stage == crate::ShaderStage::Fragment
+                && ep.early_depth_test == Some(crate::EarlyDepthTest::Force)
+            {
+                write!(self.out, "[[early_fragment_tests]] ")?;
             }
 
             // Write the entry point function's name, and begin its argument list.
