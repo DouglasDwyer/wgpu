@@ -160,6 +160,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
             options,
             pipeline_options,
             entry_point_io: crate::FastHashMap::default(),
+            early_depth_test: None,
             named_expressions: crate::NamedExpressions::default(),
             wrapped: super::Wrapped::default(),
             written_committed_intersection: false,
@@ -373,6 +374,9 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
             writeln!(self.out)?;
         }
 
+        let ep_range = get_entry_points(module, self.pipeline_options.entry_point.as_ref())
+            .map_err(|(stage, name)| Error::EntryPointNotFound(stage, name))?;
+
         // Save all entry point output types
         let ep_results = module
             .entry_points
@@ -402,13 +406,16 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     }
                 });
 
-                self.write_struct(
-                    module,
-                    handle,
-                    members,
-                    span,
-                    ep_result.map(|r| (r.0, Io::Output)),
-                )?;
+                let early_depth_test = shared_early_depth_test(module, ep_range.clone(), handle);
+                self.with_early_depth_test(early_depth_test, |this| {
+                    this.write_struct(
+                        module,
+                        handle,
+                        members,
+                        span,
+                        ep_result.map(|r| (r.0, Io::Output)),
+                    )
+                })?;
                 writeln!(self.out)?;
             }
         }
@@ -441,9 +448,6 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
             // Add extra newline for readability
             writeln!(self.out)?;
         }
-
-        let ep_range = get_entry_points(module, self.pipeline_options.entry_point.as_ref())
-            .map_err(|(stage, name)| Error::EntryPointNotFound(stage, name))?;
 
         // Write all entry points wrapped structs
         for index in ep_range.clone() {
@@ -552,6 +556,11 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     num_threads[0], num_threads[1], num_threads[2]
                 )?;
             }
+            if ep.stage == ShaderStage::Fragment
+                && ep.early_depth_test == Some(crate::EarlyDepthTest::Force)
+            {
+                writeln!(attribute_string, "[earlydepthstencil]")?;
+            }
             if let Some(ref info) = ep.mesh_info {
                 let topology_str = match info.topology {
                     crate::MeshOutputTopology::Points => unreachable!(),
@@ -607,6 +616,18 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         Ok(())
     }
 
+    /// Runs `write` with [`Self::early_depth_test`] set to `early_depth_test`.
+    fn with_early_depth_test<T>(
+        &mut self,
+        early_depth_test: Option<crate::EarlyDepthTest>,
+        write: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        self.early_depth_test = early_depth_test;
+        let result = write(self);
+        self.early_depth_test = None;
+        result
+    }
+
     //TODO: we could force fragment outputs to always go through `entry_point_io.output` path
     // if they are struct, so that the `stage` argument here could be omitted.
     pub(super) fn write_semantic(
@@ -625,6 +646,17 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     ));
                 }
                 if let Some(builtin_str) = builtin.to_hlsl_str()? {
+                    let builtin_str = match (builtin, self.early_depth_test) {
+                        (
+                            crate::BuiltIn::FragDepth,
+                            Some(crate::EarlyDepthTest::Allow { conservative }),
+                        ) => match conservative {
+                            crate::ConservativeDepth::GreaterEqual => "SV_DepthGreaterEqual",
+                            crate::ConservativeDepth::LessEqual => "SV_DepthLessEqual",
+                            crate::ConservativeDepth::Unchanged => builtin_str,
+                        },
+                        _ => builtin_str,
+                    };
                     write!(self.out, " : {builtin_str}")?;
                 }
                 false
@@ -1805,9 +1837,11 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
 
         // Write semantic if it present
         if let back::FunctionType::EntryPoint(index) = func_ctx.ty {
-            let stage = module.entry_points[index as usize].stage;
+            let entry_point = &module.entry_points[index as usize];
             if let Some(crate::FunctionResult { ref binding, .. }) = func.result {
-                self.write_semantic(binding, Some((stage, Io::Output)))?;
+                self.with_early_depth_test(entry_point.early_depth_test, |this| {
+                    this.write_semantic(binding, Some((entry_point.stage, Io::Output)))
+                })?;
             }
         }
 
@@ -4962,6 +4996,30 @@ pub(super) fn get_inner_matrix_data(
         }),
         TypeInner::Array { base, .. } => get_inner_matrix_data(module, base),
         _ => None,
+    }
+}
+
+/// Gets the early depth test of the fragment entry points in `entry_points` that return `ty`.
+///
+/// Returns `None` if there are no such entry points or if they disagree. The semantic of a
+/// depth output is part of the definition of the struct that contains it, so a struct that is
+/// shared by entry points with different settings cannot use a conservative semantic.
+fn shared_early_depth_test(
+    module: &Module,
+    entry_points: core::ops::Range<usize>,
+    ty: Handle<crate::Type>,
+) -> Option<crate::EarlyDepthTest> {
+    let mut users = entry_points
+        .map(|index| &module.entry_points[index])
+        .filter(|ep| {
+            ep.stage == ShaderStage::Fragment
+                && ep.function.result.as_ref().is_some_and(|r| r.ty == ty)
+        });
+    let first = users.next()?.early_depth_test;
+    if users.all(|ep| ep.early_depth_test == first) {
+        first
+    } else {
+        None
     }
 }
 

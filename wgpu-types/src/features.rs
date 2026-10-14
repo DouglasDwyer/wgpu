@@ -794,6 +794,8 @@ features! {
         ///
         ///      - `layout(early_fragment_tests) in;` (GLSL)
         ///
+        ///      - `[earlydepthstencil]` (HLSL)
+        ///
         ///   2. Provide a conservative depth specifier that allows an additional early
         ///      depth test under certain conditions:
         ///
@@ -801,10 +803,14 @@ features! {
         ///
         ///      - `layout(depth_<greater/less/unchanged>) out float gl_FragDepth;` (GLSL)
         ///
+        ///      - `SV_Depth<GreaterEqual/LessEqual>` (HLSL). HLSL has no equivalent of
+        ///        `unchanged`, so that specifier has no effect.
+        ///
         /// See [`EarlyDepthTest`] for more details.
         ///
         /// Supported platforms:
         /// - Vulkan
+        /// - DX12
         /// - GLES 3.1+
         ///
         /// This is a native only feature.

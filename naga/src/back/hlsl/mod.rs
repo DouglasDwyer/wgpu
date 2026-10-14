@@ -753,6 +753,11 @@ pub struct Writer<'a, W> {
     pipeline_options: &'a PipelineOptions,
     /// Information about entry point arguments and result types.
     entry_point_io: crate::FastHashMap<usize, writer::EntryPointInterface>,
+    /// The early depth test of the fragment entry point whose result is being written.
+    ///
+    /// Conservative depth is expressed through the semantic of the `frag_depth` output,
+    /// so this is needed while writing that output.
+    early_depth_test: Option<crate::EarlyDepthTest>,
     /// Set of expressions that have associated temporary variables
     named_expressions: crate::NamedExpressions,
     wrapped: Wrapped,
@@ -798,7 +803,7 @@ pub fn supported_capabilities() -> crate::valid::Capabilities {
         // No CULL_DISTANCE
         | Caps::STORAGE_TEXTURE_16BIT_NORM_FORMATS
         | Caps::MULTIVIEW
-        // No EARLY_DEPTH_TEST
+        | Caps::EARLY_DEPTH_TEST
         | Caps::MULTISAMPLED_SHADING
         | Caps::RAY_QUERY
         | Caps::DUAL_SOURCE_BLENDING
