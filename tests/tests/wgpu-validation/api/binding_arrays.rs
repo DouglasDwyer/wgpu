@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use wgpu::*;
-use wgpu_test::fail;
+use wgpu_test::{fail, valid};
 
 #[test]
 fn dynamic_offset() {
@@ -59,36 +59,32 @@ fn uniform_buffer() {
         ..DeviceDescriptor::default()
     });
 
-    // Check that you can't create a bind group with both uniform buffer and binding array
-    fail(
-        &device,
-        || {
-            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("Test2"),
-                entries: &[
-                    BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Texture {
-                            sample_type: TextureSampleType::Float { filterable: false },
-                            view_dimension: TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: Some(NonZeroU32::new(4).unwrap()),
+    // Check that you can create a bind group with both uniform buffer and binding array
+    valid(&device, || {
+        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Test2"),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: false },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
                     },
-                    BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                    count: Some(NonZeroU32::new(4).unwrap()),
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                ],
-            })
-        },
-        Some("binding array and a uniform buffer"),
-    );
+                    count: None,
+                },
+            ],
+        })
+    });
 }

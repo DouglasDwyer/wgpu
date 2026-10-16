@@ -342,7 +342,6 @@ pub struct BindGroupLayoutEntry {
     /// - When `ty == BindingType::Buffer` and `ty.ty == BufferBindingType::Storage`, [`Features::STORAGE_RESOURCE_BINDING_ARRAY`] must be supported.
     /// - When `ty == BindingType::StorageTexture`, [`Features::STORAGE_RESOURCE_BINDING_ARRAY`] must be supported.
     /// - When any binding in the group is an array, no `BindingType::Buffer` in the group may have `has_dynamic_offset == true`
-    /// - When any binding in the group is an array, no `BindingType::Buffer` in the group may have `ty.ty == BufferBindingType::Uniform`.
     /// - If [`Features::PARTIALLY_BOUND_BINDING_ARRAY`] is enabled, the specified count becomes the upper bound instead.
     ///
     #[cfg_attr(feature = "serde", serde(default))]
