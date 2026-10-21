@@ -1369,7 +1369,8 @@ impl super::Validator {
             E::RayQueryGetIntersection {
                 query,
                 committed: _,
-            } => match resolver[query] {
+            }
+            | E::RayQueryGetCurrentTMax { query } => match resolver[query] {
                 Ti::Pointer {
                     base,
                     space: crate::AddressSpace::Function,

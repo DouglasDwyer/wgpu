@@ -846,7 +846,8 @@ impl FunctionInfo {
             E::RayQueryGetIntersection {
                 query,
                 committed: _,
-            } => Uniformity {
+            }
+            | E::RayQueryGetCurrentTMax { query } => Uniformity {
                 non_uniform_result: self.add_ref(query),
                 requirements: UniformityRequirements::empty(),
             },

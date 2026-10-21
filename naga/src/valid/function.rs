@@ -819,6 +819,7 @@ impl super::Validator {
                             | Ex::Bitcast { .. }
                             | Ex::ArrayLength(_)
                             | Ex::RayQueryGetIntersection { .. }
+                            | Ex::RayQueryGetCurrentTMax { .. }
                             | Ex::RayQueryVertexPositions { .. }
                             | Ex::CooperativeLoad { .. }
                             | Ex::CooperativeMultiplyAdd { .. } => {

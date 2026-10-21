@@ -4693,7 +4693,8 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 }
             }
             // Not supported yet
-            Expression::RayQueryVertexPositions { .. }
+            Expression::RayQueryGetCurrentTMax { .. }
+            | Expression::RayQueryVertexPositions { .. }
             | Expression::CooperativeLoad { .. }
             | Expression::CooperativeMultiplyAdd { .. } => {
                 unreachable!()

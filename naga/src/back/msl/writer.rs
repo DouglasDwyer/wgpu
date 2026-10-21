@@ -3095,7 +3095,8 @@ impl<W: Write> Writer<W> {
                     write!(self.out, ")")?;
                 }
             }
-            crate::Expression::RayQueryVertexPositions { .. } => {
+            crate::Expression::RayQueryVertexPositions { .. }
+            | crate::Expression::RayQueryGetCurrentTMax { .. } => {
                 unimplemented!()
             }
             crate::Expression::RayQueryGetIntersection { query, committed } => {
