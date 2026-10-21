@@ -117,6 +117,10 @@ Bottom level categories:
 - Raise a type error, rather than panic, for some cases of an invalid `select` argument type in WGSL constant evaluation. By @ErichDonGubler in [#10350](https://github.com/gfx-rs/wgpu/pull/10350).
 - Fix `sign` returning unexpected values for floating-point arguments in the HLSL backend. By @ErichDonGubler in [#10434](https://github.com/gfx-rs/wgpu/pull/10434).
 
+#### Naga
+
+- Fix `rayQueryGenerateIntersection` in the WGSL frontend not emitting its `hit_t` argument before the statement that uses it, which made modules fail validation if `hit_t` was an expression such as a struct member access. By @DouglasDwyer in [#10694](https://github.com/gfx-rs/wgpu/pull/10694).
+
 #### DX12
 
 - Fix a 1 second stall in `Surface::get_current_texture` after a surface texture was dropped without being presented. By @DouglasDwyer.
