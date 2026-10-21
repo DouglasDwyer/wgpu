@@ -1,0 +1,197 @@
+struct RayDesc_ {
+    uint flags;
+    uint cull_mask;
+    float tmin;
+    float tmax;
+    float3 origin;
+    int _pad5_0;
+    float3 dir;
+    int _end_pad_0;
+};
+
+struct RayIntersection {
+    uint kind;
+    float t;
+    uint instance_custom_data;
+    uint instance_index;
+    uint sbt_record_offset;
+    uint geometry_index;
+    uint primitive_index;
+    float2 barycentrics;
+    bool front_face;
+    int _pad9_0;
+    int _pad9_1;
+    row_major float4x3 object_to_world;
+    int _pad10_0;
+    row_major float4x3 world_to_object;
+    int _end_pad_0;
+};
+
+RayDesc RayDescFromRayDesc_(RayDesc_ arg0) {
+    RayDesc ret = (RayDesc)0;
+    ret.Origin = arg0.origin;
+    ret.TMin = arg0.tmin;
+    ret.Direction = arg0.dir;
+    ret.TMax = arg0.tmax;
+    return ret;
+}
+
+RaytracingAccelerationStructure acc_struct : register(t0);
+
+RayDesc_ ConstructRayDesc_(uint arg0, uint arg1, float arg2, float arg3, float3 arg4, float3 arg5) {
+    RayDesc_ ret = (RayDesc_)0;
+    ret.flags = arg0;
+    ret.cull_mask = arg1;
+    ret.tmin = arg2;
+    ret.tmax = arg3;
+    ret.origin = arg4;
+    ret.dir = arg5;
+    return ret;
+}
+
+RayIntersection GetCandidateIntersection(RayQuery<RAY_FLAG_NONE> rq, uint rq_tracker) {
+    RayIntersection ret = (RayIntersection)0;
+    if (((rq_tracker & 2) == 2) && !((rq_tracker & 4) == 4)) {
+        CANDIDATE_TYPE kind = rq.CandidateType();
+        if (kind == CANDIDATE_NON_OPAQUE_TRIANGLE) {
+            ret.kind = 1;
+            ret.t = rq.CandidateTriangleRayT();
+            ret.barycentrics = rq.CandidateTriangleBarycentrics();
+            ret.front_face = rq.CandidateTriangleFrontFace();
+        } else {
+            ret.kind = 3;
+        }
+        ret.instance_custom_data = rq.CandidateInstanceID();
+        ret.instance_index = rq.CandidateInstanceIndex();
+        ret.sbt_record_offset = rq.CandidateInstanceContributionToHitGroupIndex();
+        ret.geometry_index = rq.CandidateGeometryIndex();
+        ret.primitive_index = rq.CandidatePrimitiveIndex();
+        ret.object_to_world = rq.CandidateObjectToWorld4x3();
+        ret.world_to_object = rq.CandidateWorldToObject4x3();
+    }
+    return ret;
+}
+
+void trace(inout RayQuery<RAY_FLAG_NONE> rq, float3 pos, float3 dir, inout uint naga_query_init_tracker_for_rq)
+{
+    {
+        RayDesc_ naga_desc = ConstructRayDesc_(4u, 255u, 0.1, 100.0, pos, dir);
+        float naga_tmin = naga_desc.tmin;
+        float naga_tmax = naga_desc.tmax;
+        float3 naga_origin = naga_desc.origin;
+        float3 naga_dir = naga_desc.dir;
+        uint naga_flags = naga_desc.flags;
+        bool naga_tmin_valid = (naga_tmin >= 0.0) && (naga_tmin <= naga_tmax) && !(((asuint(naga_tmin) & 2139095040) == 2139095040) && ((asuint(naga_tmin) & 0x7fffff) != 0));
+        bool naga_tmax_valid = !(((asuint(naga_tmax) & 2139095040) == 2139095040) && ((asuint(naga_tmax) & 0x7fffff) != 0));
+        bool naga_origin_valid = !any((((asuint(naga_origin) & 2139095040) == 2139095040) && ((asuint(naga_origin) & 0x7fffff) != 0)));
+        bool naga_dir_valid = !any((((asuint(naga_dir) & 2139095040) == 2139095040) && ((asuint(naga_dir) & 0x7fffff) != 0)));
+        bool naga_contains_opaque = ((naga_flags & 1) == 1);
+        bool naga_contains_no_opaque = ((naga_flags & 2) == 2);
+        bool naga_contains_cull_opaque = ((naga_flags & 64) == 64);
+        bool naga_contains_cull_no_opaque = ((naga_flags & 128) == 128);
+        bool naga_contains_cull_front = ((naga_flags & 32) == 32);
+        bool naga_contains_cull_back = ((naga_flags & 16) == 16);
+        bool naga_contains_skip_triangles = ((naga_flags & 256) == 256);
+        bool naga_contains_skip_aabbs = ((naga_flags & 512) == 512);
+        bool naga_contains_skip_triangles_aabbs =  (naga_contains_skip_aabbs && naga_contains_skip_triangles) ;
+        bool naga_contains_skip_triangles_cull =  (naga_contains_cull_front && naga_contains_skip_triangles) || (naga_contains_cull_front && naga_contains_cull_back) || (naga_contains_cull_back && naga_contains_skip_triangles) ;
+        bool naga_contains_multiple_opaque =  (naga_contains_cull_no_opaque && naga_contains_opaque) || (naga_contains_cull_no_opaque && naga_contains_no_opaque) || (naga_contains_cull_no_opaque && naga_contains_cull_opaque) || (naga_contains_cull_opaque && naga_contains_opaque) || (naga_contains_cull_opaque && naga_contains_no_opaque) || (naga_contains_no_opaque && naga_contains_opaque) ;
+        if (naga_tmin_valid && naga_tmax_valid && naga_origin_valid && naga_dir_valid && !(naga_contains_skip_triangles_aabbs || naga_contains_skip_triangles_cull || naga_contains_multiple_opaque)) {
+            naga_query_init_tracker_for_rq = naga_query_init_tracker_for_rq | 1;
+            rq.TraceRayInline(acc_struct, naga_desc.flags, naga_desc.cull_mask, RayDescFromRayDesc_(naga_desc));
+        }
+    }
+    uint2 loop_bound = uint2(4294967295u, 4294967295u);
+    while(true) {
+        if (all(loop_bound == uint2(0u, 0u))) { break; }
+        loop_bound -= uint2(loop_bound.y == 0u, 1u);
+        bool _e9 = false;
+        {
+            bool naga_has_initialized = ((naga_query_init_tracker_for_rq & 1) == 1);
+            bool naga_has_finished = ((naga_query_init_tracker_for_rq & 4) == 4);
+            if (naga_has_initialized && !naga_has_finished) {
+                _e9 = rq.Proceed();
+                naga_query_init_tracker_for_rq = naga_query_init_tracker_for_rq | 2;
+                if (!_e9) { naga_query_init_tracker_for_rq = naga_query_init_tracker_for_rq | 4; }
+        }}
+        if (_e9) {
+        } else {
+            break;
+        }
+        {
+            RayIntersection candidate = GetCandidateIntersection(rq, naga_query_init_tracker_for_rq);
+            if ((candidate.kind == 3u)) {
+                float hit_t = candidate.t;
+                if (((naga_query_init_tracker_for_rq & 2) == 2) && !((naga_query_init_tracker_for_rq & 4) == 4)) {
+                    CANDIDATE_TYPE naga_kind = rq.CandidateType();
+                    float naga_tmin = rq.RayTMin();
+                    float naga_tcurrentmax = rq.CommittedRayT();
+                    if ((naga_kind == CANDIDATE_PROCEDURAL_PRIMITIVE) && (naga_tmin <=hit_t) && (hit_t <= naga_tcurrentmax)) {
+                        rq.CommitProceduralPrimitiveHit(hit_t);
+                }}
+            } else {
+                if ((candidate.kind == 1u)) {
+                    if (((naga_query_init_tracker_for_rq & 2) == 2) && !((naga_query_init_tracker_for_rq & 4) == 4)) {
+                        CANDIDATE_TYPE naga_kind = rq.CandidateType();
+                        if (naga_kind == CANDIDATE_NON_OPAQUE_TRIANGLE) {
+                            rq.CommitNonOpaqueTriangleHit();
+                    }}
+                } else {
+                    if (((naga_query_init_tracker_for_rq & 1) == 1)) {
+                        rq.Abort();
+                    }
+                }
+            }
+        }
+    }
+    return;
+}
+
+RayIntersection GetCommittedIntersection(RayQuery<RAY_FLAG_NONE> rq, uint rq_tracker) {
+    RayIntersection ret = (RayIntersection)0;
+    if (((rq_tracker & 4) == 4)) {
+        ret.kind = rq.CommittedStatus();
+        if( rq.CommittedStatus() == COMMITTED_NOTHING) {} else {
+            ret.t = rq.CommittedRayT();
+            ret.instance_custom_data = rq.CommittedInstanceID();
+            ret.instance_index = rq.CommittedInstanceIndex();
+            ret.sbt_record_offset = rq.CommittedInstanceContributionToHitGroupIndex();
+            ret.geometry_index = rq.CommittedGeometryIndex();
+            ret.primitive_index = rq.CommittedPrimitiveIndex();
+            if( rq.CommittedStatus() == COMMITTED_TRIANGLE_HIT ) {
+                ret.barycentrics = rq.CommittedTriangleBarycentrics();
+                ret.front_face = rq.CommittedTriangleFrontFace();
+            }
+            ret.object_to_world = rq.CommittedObjectToWorld4x3();
+            ret.world_to_object = rq.CommittedWorldToObject4x3();
+        }
+    }
+    return ret;
+}
+
+float trace_and_get(inout RayQuery<RAY_FLAG_NONE> rq_1, float3 pos_1, float3 dir_1, inout uint naga_query_init_tracker_for_rq_1)
+{
+    trace(rq_1, pos_1, dir_1, naga_query_init_tracker_for_rq_1);
+    return GetCommittedIntersection(rq_1, naga_query_init_tracker_for_rq_1).t;
+}
+
+float closest_of_two(inout RayQuery<RAY_FLAG_NONE> a, float scale, inout RayQuery<RAY_FLAG_NONE> b, inout uint naga_query_init_tracker_for_a, inout uint naga_query_init_tracker_for_b)
+{
+    return (scale * min(GetCommittedIntersection(a, naga_query_init_tracker_for_a).t, GetCommittedIntersection(b, naga_query_init_tracker_for_b).t));
+}
+
+[numthreads(1, 1, 1)]
+void main()
+{
+    RayQuery<RAY_FLAG_NONE> first;
+    uint naga_query_init_tracker_for_first = 0;
+    RayQuery<RAY_FLAG_NONE> second;
+    uint naga_query_init_tracker_for_second = 0;
+
+    float3 pos_2 = (0.0).xxx;
+    float3 dir_2 = float3(0.0, 1.0, 0.0);
+    const float _e8 = trace_and_get(first, pos_2, dir_2, naga_query_init_tracker_for_first);
+    trace(second, pos_2, -(dir_2), naga_query_init_tracker_for_second);
+    const float _e10 = closest_of_two(first, _e8, second, naga_query_init_tracker_for_first, naga_query_init_tracker_for_second);
+    return;
+}
