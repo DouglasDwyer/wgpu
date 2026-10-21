@@ -396,3 +396,18 @@ pub enum RayIntersectionType {
     Triangle = 1,
     BoundingBox = 4,
 }
+
+/// Returns true if `ty` is a pointer to a ray query.
+///
+/// Backends track the state of every ray query (whether it has been initialized, and so on).
+/// That state belongs to the variable that is pointed to, so when such a pointer is passed to
+/// a function, the state has to be passed along with it.
+#[cfg(any(hlsl_out, msl_out, spv_out))]
+pub(crate) fn is_ray_query_pointer(module: &crate::Module, ty: crate::Handle<crate::Type>) -> bool {
+    match module.types[ty].inner {
+        crate::TypeInner::Pointer { base, .. } => {
+            matches!(module.types[base].inner, crate::TypeInner::RayQuery { .. })
+        }
+        _ => false,
+    }
+}

@@ -8,7 +8,7 @@ use crate::{
     back::{
         self,
         msl::{
-            writer::{NameKeyExt, StatementContext, TypeContext, WrappedFunction},
+            writer::{StatementContext, TypeContext, WrappedFunction},
             BackendResult, Error, Writer, NAMESPACE,
         },
         Baked, INDENT,
@@ -206,32 +206,8 @@ impl<W: Write> Writer<W> {
             return Err(Error::UnsupportedRayTracing);
         }
 
-        // There are three possibilities for a ptr to be:
-        // 1. A variable
-        // 2. A function argument
-        // 3. part of a struct
-        //
-        // 2 and 3 are not possible, a ray query (in naga IR)
-        // is not allowed to be passed into a function, and
-        // all languages disallow it in a struct (you get fun results if
-        // you try it :) ).
-        //
-        // Therefore, the ray query expression must be a variable.
-        let crate::Expression::LocalVariable(query_var) =
-            context.expression.function.expressions[query]
-        else {
-            unreachable!()
-        };
-
-        let tracker_expr_name = format!(
-            "{RAY_QUERY_TRACKER_VARIABLE_PREFIX}{}",
-            self.names[&crate::proc::NameKey::local(context.expression.origin, query_var)]
-        );
-
-        let tmax_tracker_expr_name = format!(
-            "{RAY_QUERY_T_MAX_TRACKER_VARIABLE_PREFIX}{}",
-            self.names[&crate::proc::NameKey::local(context.expression.origin, query_var)]
-        );
+        let (tracker_expr_name, tmax_tracker_expr_name) =
+            self.ray_query_tracker_names(&context.expression, query);
 
         // TODO: check for misuse.
         match *fun {

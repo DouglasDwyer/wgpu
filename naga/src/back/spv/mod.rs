@@ -258,6 +258,14 @@ struct Function {
     /// Map from a local variable that is a ray query to its tracker for the t max.
     ray_query_t_max_tracker_variables:
         crate::FastHashMap<Handle<crate::LocalVariable>, LocalVariable>,
+    /// Map from the index of a function argument that is a pointer to a ray query
+    /// to the trackers that were passed to the function along with that argument.
+    ///
+    /// The trackers of a ray query that lives in the caller have to be passed through to
+    /// the callee as extra pointer parameters. These come after all of the function's
+    /// regular parameters, two (initialization, then t max) for each argument for which
+    /// [`crate::back::is_ray_query_pointer`] is true, in argument order.
+    ray_query_argument_trackers: crate::FastHashMap<u32, RayQueryTrackers>,
     /// List of local variables used as a counters to ensure that all loops are bounded.
     force_loop_bounding_vars: Vec<LocalVariable>,
 

@@ -174,7 +174,7 @@ pub enum FunctionError {
     },
     #[error("Atomic operation is invalid")]
     InvalidAtomic(#[from] AtomicError),
-    #[error("Ray Query {0:?} is not a local variable")]
+    #[error("Ray Query {0:?} is not a local variable or a function argument")]
     InvalidRayQueryExpression(Handle<crate::Expression>),
     #[error("Acceleration structure {0:?} is not a matching expression")]
     InvalidAccelerationStructure(Handle<crate::Expression>),
@@ -266,7 +266,6 @@ struct BlockContext<'a> {
     info: &'a FunctionInfo,
     expressions: &'a Arena<crate::Expression>,
     types: &'a UniqueArena<crate::Type>,
-    local_vars: &'a Arena<crate::LocalVariable>,
     global_vars: &'a Arena<crate::GlobalVariable>,
     functions: &'a Arena<crate::Function>,
     special_types: &'a crate::SpecialTypes,
@@ -288,7 +287,6 @@ impl<'a> BlockContext<'a> {
             info,
             expressions: &fun.expressions,
             types: &module.types,
-            local_vars: &fun.local_variables,
             global_vars: &module.global_variables,
             functions: &module.functions,
             special_types: &module.special_types,
@@ -1525,20 +1523,33 @@ impl super::Validator {
                     }
                 }
                 S::RayQuery { query, ref fun } => {
-                    let query_var = match *context.get_expression(query) {
-                        crate::Expression::LocalVariable(var) => &context.local_vars[var],
+                    // A ray query can only be operated on through a pointer to a
+                    // local variable, or through a pointer that was passed in as a function argument.
+                    match *context.get_expression(query) {
+                        crate::Expression::LocalVariable(_)
+                        | crate::Expression::FunctionArgument(_) => {}
                         ref other => {
                             log::error!("Unexpected ray query expression {other:?}");
                             return Err(FunctionError::InvalidRayQueryExpression(query)
                                 .with_span_static(span, "invalid query expression"));
                         }
-                    };
-                    let rq_vertex_return = match context.types[query_var.ty].inner {
-                        Ti::RayQuery { vertex_return } => vertex_return,
+                    }
+                    let rq_vertex_return = match *context.resolve_pointer_type(query) {
+                        Ti::Pointer {
+                            base,
+                            space: AddressSpace::Function,
+                        } => match context.types[base].inner {
+                            Ti::RayQuery { vertex_return } => vertex_return,
+                            ref other => {
+                                log::error!("Unexpected ray query type {other:?}");
+                                return Err(FunctionError::InvalidRayQueryType(base)
+                                    .with_span_static(span, "invalid query type"));
+                            }
+                        },
                         ref other => {
-                            log::error!("Unexpected ray query type {other:?}");
-                            return Err(FunctionError::InvalidRayQueryType(query_var.ty)
-                                .with_span_static(span, "invalid query type"));
+                            log::error!("Unexpected ray query pointer type {other:?}");
+                            return Err(FunctionError::InvalidRayQueryExpression(query)
+                                .with_span_static(span, "invalid query expression"));
                         }
                     };
                     match *fun {

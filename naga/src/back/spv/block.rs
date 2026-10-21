@@ -13,8 +13,10 @@ use super::{
     ResultMember, WrappedFunction, Writer, WriterFlags,
 };
 use crate::{
-    arena::Handle, back::spv::helpers::is_uniform_matcx2_struct_member_access,
-    proc::index::GuardedIndex, Statement,
+    arena::Handle,
+    back::{is_ray_query_pointer, spv::helpers::is_uniform_matcx2_struct_member_access},
+    proc::index::GuardedIndex,
+    Statement,
 };
 
 fn get_dimension(type_inner: &crate::TypeInner) -> Dimension {
@@ -2047,7 +2049,12 @@ impl BlockContext<'_> {
             crate::Expression::Load { pointer } => {
                 self.write_checked_load(pointer, block, AccessTypeAdjustment::None, result_type_id)?
             }
-            crate::Expression::FunctionArgument(index) => self.function.parameter_id(index),
+            crate::Expression::FunctionArgument(index) => {
+                if let Some(trackers) = self.function.ray_query_argument_trackers.get(&index) {
+                    self.ray_query_tracker_expr.insert(expr_handle, *trackers);
+                }
+                self.function.parameter_id(index)
+            }
             crate::Expression::CallResult(_)
             | crate::Expression::AtomicResult { .. }
             | crate::Expression::WorkGroupUniformLoadResult { .. }
@@ -3936,6 +3943,22 @@ impl BlockContext<'_> {
                     self.temp_list.clear();
                     for &argument in arguments {
                         self.temp_list.push(self.cached[argument]);
+                    }
+
+                    // Pointers to ray queries are followed by their trackers.
+                    // The callee declares these parameters after its regular parameters.
+                    for (&argument, callee_argument) in arguments
+                        .iter()
+                        .zip(&self.ir_module.functions[local_function].arguments)
+                    {
+                        if is_ray_query_pointer(self.ir_module, callee_argument.ty) {
+                            let trackers = self
+                                .ray_query_tracker_expr
+                                .get(&argument)
+                                .expect("not a cached ray query");
+                            self.temp_list.push(trackers.initialized_tracker);
+                            self.temp_list.push(trackers.t_max_tracker);
+                        }
                     }
 
                     let type_id = match result {

@@ -1197,6 +1197,39 @@ impl<W: Write> Writer<W> {
         Ok(())
     }
 
+    /// Gets the names of the variables that track the state of the ray query `query`:
+    /// the initialization tracker, and the tracker for the t max.
+    ///
+    /// A ray query is either a local variable, or a pointer that was passed in as a function
+    /// argument. For the latter, the trackers are passed to the function as extra arguments,
+    /// after all of the regular arguments (a pair for every ray query argument).
+    pub(super) fn ray_query_tracker_names(
+        &self,
+        context: &ExpressionContext,
+        query: Handle<crate::Expression>,
+    ) -> (String, String) {
+        let name_key = match context.function.expressions[query] {
+            crate::Expression::LocalVariable(var) => NameKey::local(context.origin, var),
+            crate::Expression::FunctionArgument(index) => match context.origin {
+                FunctionOrigin::Handle(handle) => NameKey::FunctionArgument(handle, index),
+                FunctionOrigin::EntryPoint(ep_index) => {
+                    NameKey::EntryPointArgument(ep_index, index)
+                }
+            },
+            // A ray query cannot be in a struct (all languages disallow it),
+            // so the only other way to get a pointer to one is as a function argument.
+            ref other => unreachable!("unexpected ray query expression {other:?}"),
+        };
+        let name = &self.names[&name_key];
+        (
+            format!("{}{name}", super::ray::RAY_QUERY_TRACKER_VARIABLE_PREFIX),
+            format!(
+                "{}{name}",
+                super::ray::RAY_QUERY_T_MAX_TRACKER_VARIABLE_PREFIX
+            ),
+        )
+    }
+
     fn put_level_of_detail(
         &mut self,
         level: LevelOfDetail,
@@ -3047,18 +3080,7 @@ impl<W: Write> Writer<W> {
                     return Err(Error::UnsupportedRayTracing);
                 }
 
-                // See comment in `write_ray_query_stmt` for why this is valid
-                let crate::Expression::LocalVariable(query_var) =
-                    context.function.expressions[query]
-                else {
-                    unreachable!()
-                };
-
-                let tracker_expr_name = format!(
-                    "{}{}",
-                    super::ray::RAY_QUERY_TRACKER_VARIABLE_PREFIX,
-                    self.names[&NameKey::local(context.origin, query_var)]
-                );
+                let (tracker_expr_name, _) = self.ray_query_tracker_names(context, query);
 
                 write!(
                     self.out,
@@ -4170,6 +4192,22 @@ impl<W: Write> Writer<W> {
                             write!(self.out, ", ")?;
                         }
                         self.put_expression(handle, &context.expression, true)?;
+                    }
+                    // follow-up with the trackers of any ray queries
+                    if context.expression.ray_query_initialization_tracking {
+                        for (&handle, callee_argument) in arguments
+                            .iter()
+                            .zip(&context.expression.module.functions[function].arguments)
+                        {
+                            if back::is_ray_query_pointer(
+                                context.expression.module,
+                                callee_argument.ty,
+                            ) {
+                                let (tracker, t_max_tracker) =
+                                    self.ray_query_tracker_names(&context.expression, handle);
+                                write!(self.out, ", {tracker}, {t_max_tracker}")?;
+                            }
+                        }
                     }
                     // follow-up with any global resources used
                     let mut separate = !arguments.is_empty();
@@ -7010,6 +7048,18 @@ template <typename A>
                 }
             }
 
+            // Indices of the arguments that are pointers to ray queries
+            let ray_query_arguments = if options.ray_query_initialization_tracking {
+                fun.arguments
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, arg)| back::is_ray_query_pointer(module, arg.ty))
+                    .map(|(index, _)| index as u32)
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+
             let fun_name = &self.names[&NameKey::Function(fun_handle)];
             match fun.result {
                 Some(ref result) => {
@@ -7046,6 +7096,7 @@ template <typename A>
                 let separator = separate(
                     !pass_through_globals.is_empty()
                         || index + 1 != fun.arguments.len()
+                        || !ray_query_arguments.is_empty()
                         || needs_buffer_sizes,
                 );
                 writeln!(
@@ -7055,6 +7106,22 @@ template <typename A>
                     param_type_name,
                     name,
                     separator
+                )?;
+            }
+            // Ray queries are passed along with their trackers
+            for (index, &argument_index) in ray_query_arguments.iter().enumerate() {
+                let name = &self.names[&NameKey::FunctionArgument(fun_handle, argument_index)];
+                let separator = separate(
+                    !pass_through_globals.is_empty()
+                        || index + 1 != ray_query_arguments.len()
+                        || needs_buffer_sizes,
+                );
+                writeln!(
+                    self.out,
+                    "{indent}thread uint& {}{name},\n{indent}thread float& {}{name}{separator}",
+                    super::ray::RAY_QUERY_TRACKER_VARIABLE_PREFIX,
+                    super::ray::RAY_QUERY_T_MAX_TRACKER_VARIABLE_PREFIX,
+                    indent = back::INDENT,
                 )?;
             }
             for (index, &handle) in pass_through_globals.iter().enumerate() {

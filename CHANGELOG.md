@@ -143,6 +143,7 @@ By @sagudev in [#10307](https://github.com/gfx-rs/wgpu/pull/10307).
 #### Naga
 
 - Add `@builtin(hit_barycentrics)`, a `vec2<f32>` readable in `@any_hit` and `@closest_hit` ray tracing pipeline shaders, holding two of the barycentric coordinates of the hit point on the triangle (the third is `1.0 - x - y`). Currently only supported with the SPIR-V backend. By @JMS55 in [#10193](https://github.com/gfx-rs/wgpu/pull/10193).
+- Allow pointers to ray queries (`ptr<function, ray_query>`) to be passed as function arguments, and used with all of the `rayQuery*` functions. The SPIR-V, HLSL, and MSL backends pass the state that they track for each ray query along with the pointer. Previously, the validator rejected these functions unless they only read intersections, and the SPIR-V backend then panicked with "not a cached ray query". By @DouglasDwyer.
 
 #### Hal
 

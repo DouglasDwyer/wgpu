@@ -1728,6 +1728,19 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     write!(self.out, "{}", separator())?;
                     self.write_function_argument(module, handle, arg, index)?;
                 }
+                // Ray queries are passed along with their trackers
+                for (index, arg) in func.arguments.iter().enumerate() {
+                    if back::is_ray_query_pointer(module, arg.ty) {
+                        write!(self.out, "{}inout ", separator())?;
+                        self.write_value_type(module, &TypeInner::Scalar(Scalar::U32))?;
+                        let argument_name =
+                            &self.names[&NameKey::FunctionArgument(handle, index as u32)];
+                        write!(
+                            self.out,
+                            " {RAY_QUERY_TRACKER_VARIABLE_PREFIX}{argument_name}"
+                        )?;
+                    }
+                }
                 // If this reads a task payload variable the variable needs to be passed as an `in` argument
                 for (var_handle, var) in module.global_variables.iter() {
                     let uses = info[var_handle];
@@ -1953,6 +1966,28 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         }
 
         Ok(())
+    }
+
+    /// Gets the name of the variable that tracks the state of the ray query `query`.
+    ///
+    /// A ray query is either a local variable, or a pointer that was passed in as a function
+    /// argument. For the latter, the tracker is passed to the function as an extra argument,
+    /// after all of the regular arguments (one `inout uint` for every ray query argument).
+    fn ray_query_tracker_name(
+        &self,
+        func_ctx: &back::FunctionCtx<'_>,
+        query: Handle<crate::Expression>,
+    ) -> String {
+        let query_name = match func_ctx.expressions[query] {
+            crate::Expression::LocalVariable(var) => &self.names[&func_ctx.name_key(var)],
+            crate::Expression::FunctionArgument(index) => {
+                &self.names[&func_ctx.argument_key(index)]
+            }
+            // A ray query cannot be in a struct (all languages disallow it),
+            // so the only other way to get a pointer to one is as a function argument.
+            ref other => unreachable!("unexpected ray query expression {other:?}"),
+        };
+        format!("{RAY_QUERY_TRACKER_VARIABLE_PREFIX}{query_name}")
     }
 
     fn write_function_external_texture_argument(
@@ -2704,6 +2739,14 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     write!(self.out, "{}", separator())?;
                     self.write_expr(module, *argument, func_ctx)?;
                 }
+                for (argument, callee_argument) in
+                    arguments.iter().zip(&module.functions[function].arguments)
+                {
+                    if back::is_ray_query_pointer(module, callee_argument.ty) {
+                        let tracker_name = self.ray_query_tracker_name(func_ctx, *argument);
+                        write!(self.out, "{}{tracker_name}", separator())?;
+                    }
+                }
                 if let Some(&var) = self.function_task_payload_var.get(&function) {
                     let name = &self.names[&NameKey::GlobalVariable(var)];
                     // Pass it through directly, whether its an in variable to this function or the global variable
@@ -2832,26 +2875,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 self.write_switch(module, func_ctx, level, selector, cases)?;
             }
             Statement::RayQuery { query, ref fun } => {
-                // There are three possibilities for a ptr to be:
-                // 1. A variable
-                // 2. A function argument
-                // 3. part of a struct
-                //
-                // 2 and 3 are not possible, a ray query (in naga IR)
-                // is not allowed to be passed into a function, and
-                // all languages disallow it in a struct (you get fun results if
-                // you try it :) ).
-                //
-                // Therefore, the ray query expression must be a variable.
-                let crate::Expression::LocalVariable(query_var) = func_ctx.expressions[query]
-                else {
-                    unreachable!()
-                };
-
-                let tracker_expr_name = format!(
-                    "{RAY_QUERY_TRACKER_VARIABLE_PREFIX}{}",
-                    self.names[&func_ctx.name_key(query_var)]
-                );
+                let tracker_expr_name = self.ray_query_tracker_name(func_ctx, query);
 
                 match *fun {
                     RayQueryFunction::Initialize {
@@ -4633,15 +4657,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 write!(self.out, ")")?
             }
             Expression::RayQueryGetIntersection { query, committed } => {
-                // For reasoning, see write_stmt
-                let Expression::LocalVariable(query_var) = func_ctx.expressions[query] else {
-                    unreachable!()
-                };
-
-                let tracker_expr_name = format!(
-                    "{RAY_QUERY_TRACKER_VARIABLE_PREFIX}{}",
-                    self.names[&func_ctx.name_key(query_var)]
-                );
+                let tracker_expr_name = self.ray_query_tracker_name(func_ctx, query);
 
                 if committed {
                     write!(self.out, "GetCommittedIntersection(")?;

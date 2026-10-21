@@ -15,9 +15,12 @@ use super::{
 };
 use crate::{
     arena::{Handle, HandleVec, UniqueArena},
-    back::spv::{
-        helpers::{is_uniform_matcx2_struct_member_access, BindingDecorations},
-        BindingInfo, Std140CompatTypeInfo, WrappedFunction,
+    back::{
+        is_ray_query_pointer,
+        spv::{
+            helpers::{is_uniform_matcx2_struct_member_access, BindingDecorations},
+            BindingInfo, Std140CompatTypeInfo, WrappedFunction,
+        },
     },
     common::ForDebugWithTypes as _,
     proc::{Alignment, TypeResolution},
@@ -1383,6 +1386,45 @@ impl Writer {
                 });
                 parameter_type_ids.push(argument_type_id);
             };
+        }
+
+        // Pointers to ray queries are passed along with the trackers of the query,
+        // because the trackers belong to the variable that the pointer points to.
+        // Entry points cannot take pointers, so this only applies to regular functions.
+        if interface.is_none() {
+            for (index, argument) in ir_function.arguments.iter().enumerate() {
+                if !is_ray_query_pointer(ir_module, argument.ty) {
+                    continue;
+                }
+
+                let u32_type_id = self.get_u32_type_id();
+                let ptr_u32_type_id =
+                    self.get_pointer_type_id(u32_type_id, spirv::StorageClass::Function);
+                let f32_type_id = self.get_f32_type_id();
+                let ptr_f32_type_id =
+                    self.get_pointer_type_id(f32_type_id, spirv::StorageClass::Function);
+
+                let initialized_tracker = self.id_gen.next();
+                let t_max_tracker = self.id_gen.next();
+                for (id, type_id) in [
+                    (initialized_tracker, ptr_u32_type_id),
+                    (t_max_tracker, ptr_f32_type_id),
+                ] {
+                    function.parameters.push(FunctionArgument {
+                        instruction: Instruction::function_parameter(type_id, id),
+                        handle_id: 0,
+                    });
+                    parameter_type_ids.push(type_id);
+                }
+
+                function.ray_query_argument_trackers.insert(
+                    index as u32,
+                    super::RayQueryTrackers {
+                        initialized_tracker,
+                        t_max_tracker,
+                    },
+                );
+            }
         }
 
         let return_type_id = match ir_function.result {
