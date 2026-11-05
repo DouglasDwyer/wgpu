@@ -282,13 +282,20 @@ impl PhysicalDeviceFeatures {
         private_caps: &super::PrivateCapabilities,
     ) -> Self {
         let device_api_version = phd_capabilities.device_api_version;
-        let needs_bindless = requested_features.intersects(
-            wgt::Features::TEXTURE_BINDING_ARRAY
-                | wgt::Features::BUFFER_BINDING_ARRAY
-                | wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY
-                | wgt::Features::STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING
-                | wgt::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
+        let needs_sampled_image_array =
+            requested_features.contains(wgt::Features::TEXTURE_BINDING_ARRAY);
+        let needs_uniform_buffer_array =
+            requested_features.contains(wgt::Features::BUFFER_BINDING_ARRAY);
+        let needs_storage_image_array = requested_features.contains(
+            wgt::Features::TEXTURE_BINDING_ARRAY | wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY,
         );
+        let needs_storage_buffer_array = requested_features.contains(
+            wgt::Features::BUFFER_BINDING_ARRAY | wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+        );
+        let needs_sampled_image_and_storage_buffer_non_uniform = requested_features
+            .contains(wgt::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING);
+        let needs_storage_image_non_uniform =
+            requested_features.contains(wgt::Features::STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING);
         let needs_partially_bound =
             requested_features.intersects(wgt::Features::PARTIALLY_BOUND_BINDING_ARRAY);
 
@@ -340,21 +347,10 @@ impl PhysicalDeviceFeatures {
                 )
                 //.shader_image_gather_extended(
                 //.shader_storage_image_extended_formats(
-                .shader_uniform_buffer_array_dynamic_indexing(
-                    requested_features.contains(wgt::Features::BUFFER_BINDING_ARRAY),
-                )
-                .shader_storage_buffer_array_dynamic_indexing(requested_features.contains(
-                    wgt::Features::BUFFER_BINDING_ARRAY
-                        | wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY,
-                ))
-                .shader_sampled_image_array_dynamic_indexing(
-                    requested_features.contains(wgt::Features::TEXTURE_BINDING_ARRAY),
-                )
-                .shader_storage_buffer_array_dynamic_indexing(requested_features.contains(
-                    wgt::Features::TEXTURE_BINDING_ARRAY
-                        | wgt::Features::STORAGE_RESOURCE_BINDING_ARRAY,
-                ))
-                //.shader_storage_image_array_dynamic_indexing(
+                .shader_uniform_buffer_array_dynamic_indexing(needs_uniform_buffer_array)
+                .shader_storage_buffer_array_dynamic_indexing(needs_storage_buffer_array)
+                .shader_sampled_image_array_dynamic_indexing(needs_sampled_image_array)
+                .shader_storage_image_array_dynamic_indexing(needs_storage_image_array)
                 .shader_clip_distance(requested_features.contains(wgt::Features::CLIP_DISTANCES))
                 //.shader_cull_distance(requested_features.contains(wgt::Features::SHADER_CULL_DISTANCE))
                 .shader_float64(requested_features.contains(wgt::Features::SHADER_F64))
@@ -367,12 +363,27 @@ impl PhysicalDeviceFeatures {
             descriptor_indexing: if requested_features.intersects(INDEXING_FEATURES) {
                 Some(
                     vk::PhysicalDeviceDescriptorIndexingFeaturesEXT::default()
-                        .shader_sampled_image_array_non_uniform_indexing(needs_bindless)
-                        .shader_storage_image_array_non_uniform_indexing(needs_bindless)
-                        .shader_storage_buffer_array_non_uniform_indexing(needs_bindless)
-                        .descriptor_binding_sampled_image_update_after_bind(needs_bindless)
-                        .descriptor_binding_storage_image_update_after_bind(needs_bindless)
-                        .descriptor_binding_storage_buffer_update_after_bind(needs_bindless)
+                        .shader_sampled_image_array_non_uniform_indexing(
+                            needs_sampled_image_and_storage_buffer_non_uniform,
+                        )
+                        .shader_storage_image_array_non_uniform_indexing(
+                            needs_storage_image_non_uniform,
+                        )
+                        .shader_storage_buffer_array_non_uniform_indexing(
+                            needs_sampled_image_and_storage_buffer_non_uniform,
+                        )
+                        .descriptor_binding_sampled_image_update_after_bind(
+                            needs_sampled_image_array,
+                        )
+                        .descriptor_binding_uniform_buffer_update_after_bind(
+                            needs_uniform_buffer_array,
+                        )
+                        .descriptor_binding_storage_image_update_after_bind(
+                            needs_storage_image_array,
+                        )
+                        .descriptor_binding_storage_buffer_update_after_bind(
+                            needs_storage_buffer_array,
+                        )
                         .descriptor_binding_partially_bound(needs_partially_bound),
                 )
             } else {
@@ -834,37 +845,42 @@ impl PhysicalDeviceFeatures {
         );
 
         if let Some(ref descriptor_indexing) = self.descriptor_indexing {
-            // We use update-after-bind descriptors for all bind groups containing binding arrays.
-            //
-            // In those bind groups, we allow all binding types except uniform buffers to be present.
-            //
-            // As we can only switch between update-after-bind and not on a per bind group basis,
-            // all supported binding types need to be able to be marked update after bind.
-            //
-            // As such, we enable all features as a whole, rather individually.
-            let supports_descriptor_indexing =
-                // Sampled Images
-                descriptor_indexing.shader_sampled_image_array_non_uniform_indexing != 0
-                    && descriptor_indexing.descriptor_binding_sampled_image_update_after_bind != 0
-                    // Storage Images
-                    && descriptor_indexing.shader_storage_image_array_non_uniform_indexing != 0
+            // Binding arrays use update-after-bind descriptors, which Vulkan
+            // enables per descriptor type. Each feature below depends only on
+            // the descriptor types it can put in a binding array.
+            let supports_sampled_image_array =
+                self.core.shader_sampled_image_array_dynamic_indexing != 0
+                    && descriptor_indexing.descriptor_binding_sampled_image_update_after_bind != 0;
+            let supports_uniform_buffer_array =
+                self.core.shader_uniform_buffer_array_dynamic_indexing != 0
+                    && descriptor_indexing.descriptor_binding_uniform_buffer_update_after_bind != 0;
+            let supports_storage_resource_array =
+                self.core.shader_storage_image_array_dynamic_indexing != 0
                     && descriptor_indexing.descriptor_binding_storage_image_update_after_bind != 0
-                    // Storage Buffers
-                    && descriptor_indexing.shader_storage_buffer_array_non_uniform_indexing != 0
+                    && self.core.shader_storage_buffer_array_dynamic_indexing != 0
                     && descriptor_indexing.descriptor_binding_storage_buffer_update_after_bind != 0;
 
-            let descriptor_indexing_features = F::BUFFER_BINDING_ARRAY
-                | F::TEXTURE_BINDING_ARRAY
-                | F::STORAGE_RESOURCE_BINDING_ARRAY
-                | F::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
-                | F::STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING;
+            features.set(F::TEXTURE_BINDING_ARRAY, supports_sampled_image_array);
+            features.set(F::BUFFER_BINDING_ARRAY, supports_uniform_buffer_array);
+            features.set(
+                F::STORAGE_RESOURCE_BINDING_ARRAY,
+                supports_storage_resource_array,
+            );
 
-            features.set(descriptor_indexing_features, supports_descriptor_indexing);
+            features.set(
+                F::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
+                descriptor_indexing.shader_sampled_image_array_non_uniform_indexing != 0
+                    && descriptor_indexing.shader_storage_buffer_array_non_uniform_indexing != 0,
+            );
+            features.set(
+                F::STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING,
+                descriptor_indexing.shader_storage_image_array_non_uniform_indexing != 0,
+            );
 
-            let supports_partially_bound =
-                descriptor_indexing.descriptor_binding_partially_bound != 0;
-
-            features.set(F::PARTIALLY_BOUND_BINDING_ARRAY, supports_partially_bound);
+            features.set(
+                F::PARTIALLY_BOUND_BINDING_ARRAY,
+                descriptor_indexing.descriptor_binding_partially_bound != 0,
+            );
         }
 
         features.set(F::DEPTH_CLIP_CONTROL, self.core.depth_clamp != 0);
@@ -1517,7 +1533,7 @@ impl PhysicalDeviceProperties {
         extensions
     }
 
-    fn to_wgpu_limits(&self) -> wgt::Limits {
+    fn to_wgpu_limits(&self, available_features: wgt::Features) -> wgt::Limits {
         let limits = &self.properties.limits;
 
         // Default is only implemented for tuples up to a certain size.
@@ -1582,20 +1598,41 @@ impl PhysicalDeviceProperties {
 
         let mut max_binding_array_elements = 0;
         let mut max_sampler_binding_array_elements = 0;
-        if let Some(ref descriptor_indexing) = self.descriptor_indexing {
-            max_binding_array_elements = descriptor_indexing
-                .max_descriptor_set_update_after_bind_sampled_images
-                .min(descriptor_indexing.max_descriptor_set_update_after_bind_storage_images)
-                .min(descriptor_indexing.max_descriptor_set_update_after_bind_storage_buffers)
-                .min(descriptor_indexing.max_per_stage_descriptor_update_after_bind_sampled_images)
-                .min(descriptor_indexing.max_per_stage_descriptor_update_after_bind_storage_images)
-                .min(
-                    descriptor_indexing.max_per_stage_descriptor_update_after_bind_storage_buffers,
-                );
+        if let Some(ref di) = self.descriptor_indexing {
+            use wgt::Features as F;
 
-            max_sampler_binding_array_elements = descriptor_indexing
-                .max_descriptor_set_update_after_bind_samplers
-                .min(descriptor_indexing.max_per_stage_descriptor_update_after_bind_samplers);
+            let mut elements: Option<u32> = None;
+            let mut restrict = |limits: &[u32]| {
+                for &limit in limits {
+                    elements = Some(elements.map_or(limit, |current| current.min(limit)));
+                }
+            };
+
+            if available_features.contains(F::TEXTURE_BINDING_ARRAY) {
+                restrict(&[
+                    di.max_descriptor_set_update_after_bind_sampled_images,
+                    di.max_per_stage_descriptor_update_after_bind_sampled_images,
+                ]);
+                max_sampler_binding_array_elements = di
+                    .max_descriptor_set_update_after_bind_samplers
+                    .min(di.max_per_stage_descriptor_update_after_bind_samplers);
+            }
+            if available_features.contains(F::BUFFER_BINDING_ARRAY) {
+                restrict(&[
+                    di.max_descriptor_set_update_after_bind_uniform_buffers,
+                    di.max_per_stage_descriptor_update_after_bind_uniform_buffers,
+                ]);
+            }
+            if available_features.contains(F::STORAGE_RESOURCE_BINDING_ARRAY) {
+                restrict(&[
+                    di.max_descriptor_set_update_after_bind_storage_images,
+                    di.max_per_stage_descriptor_update_after_bind_storage_images,
+                    di.max_descriptor_set_update_after_bind_storage_buffers,
+                    di.max_per_stage_descriptor_update_after_bind_storage_buffers,
+                ]);
+            }
+
+            max_binding_array_elements = elements.unwrap_or(0);
         }
 
         const MAX_SHADER_STAGES_PER_PIPELINE: u32 = 2;
@@ -2563,7 +2600,7 @@ impl super::Instance {
                 || phd_capabilities.supports_extension(ext::load_store_op_none::NAME),
         };
         let capabilities = crate::Capabilities {
-            limits: phd_capabilities.to_wgpu_limits(),
+            limits: phd_capabilities.to_wgpu_limits(available_features),
             alignments,
             downlevel: wgt::DownlevelCapabilities {
                 flags: downlevel_flags,

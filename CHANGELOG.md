@@ -203,6 +203,7 @@ By @sagudev in [#10307](https://github.com/gfx-rs/wgpu/pull/10307).
 
 - Sub-allocate `wgpu_hal::MemoryFlags::TRANSIENT` buffers and acceleration structure build scratch from a separate Vulkan memory pool, so short-lived allocations no longer pin memory blocks shared with long-lived resources. By @stuartparmenter in [#10232](https://github.com/gfx-rs/wgpu/pull/10232).
 - Allocate acceleration structures created with `AccelerationStructureFlags::ALLOW_COMPACTION` from the transient Vulkan memory pool, since they are usually replaced by their compacted copies. By @stuartparmenter in [#10233](https://github.com/gfx-rs/wgpu/pull/10233).
+- Binding array features are now exposed per descriptor type, so an adapter that supports update-after-bind for only some descriptor types can still expose the features it fully supports. `max_binding_array_elements_per_shader_stage` is computed only from the supported types, and `BUFFER_BINDING_ARRAY` now requires uniform-buffer update-after-bind support. By @yourslug in [#99999](https://github.com/gfx-rs/wgpu/pull/99999).
 
 ### Bug Fixes
 
