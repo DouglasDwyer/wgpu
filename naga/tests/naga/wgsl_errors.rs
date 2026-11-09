@@ -4874,6 +4874,52 @@ fn bitfield_range_too_large_partially_const() {
 }
 
 #[test]
+fn subgroup_builtins_multi_dimensional_workgroup() {
+    for size in ["64", "8, 8", "4, 4, 4"] {
+        no_validation_error(
+            &format!(
+                "
+                @compute @workgroup_size({size})
+                fn main(@builtin(subgroup_invocation_id) id: u32) {{
+                    _ = subgroupAdd(id);
+                }}
+            "
+            ),
+            Capabilities::SUBGROUP,
+        );
+    }
+
+    for size in ["64", "1, 64", "1, 1, 64", "1, 64, 1"] {
+        no_validation_error(
+            &format!(
+                "
+                @compute @workgroup_size({size})
+                fn main(@builtin(subgroup_id) id: u32) {{}}
+            "
+            ),
+            Capabilities::SUBGROUP,
+        );
+    }
+
+    for size in ["8, 8", "4, 4, 4", "2, 1, 2"] {
+        check_one_validation! {
+            &format!("
+                @compute @workgroup_size({size})
+                fn main(@builtin(subgroup_id) id: u32) {{}}
+            "),
+            Err(naga::valid::ValidationError::EntryPoint {
+                source: naga::valid::EntryPointError::Argument(
+                    _,
+                    naga::valid::VaryingError::InvalidMultiDimensionalSubgroupId,
+                ),
+                ..
+            }),
+            Capabilities::SUBGROUP
+        }
+    }
+}
+
+#[test]
 fn subgroup_capability() {
     // Some of these tests should be `check_extension_validation` tests that
     // also check handling of the enable directive, but that handling is not

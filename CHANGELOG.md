@@ -258,6 +258,8 @@ By @sagudev in [#10307](https://github.com/gfx-rs/wgpu/pull/10307).
 - Fix `var<immediate>` members being read from the wrong offsets on DX12 when a nested struct is not 16-byte aligned. By @DouglasDwyer in [#10581](https://github.com/gfx-rs/wgpu/pull/10581).
 - Disallow usage of `ray_query` as a binding. By @szymros in [#10832](https://github.com/gfx-rs/wgpu/pull/10832)
 - Fix `@builtin(position).w` in fragment shaders on DX12. The HLSL backend now provides 1/w of the clip-space position, as WGSL specifies and the other backends already do, instead of w. By @abdymazhit in [#10733](https://github.com/gfx-rs/wgpu/pull/10733).
+- Allow `@builtin(subgroup_invocation_id)` in compute shaders with multi-dimensional workgroup sizes. By @DouglasDwyer in [#XXXXX](https://github.com/gfx-rs/wgpu/pull/XXXXX).
+- Allow `@builtin(subgroup_id)` in compute shaders whenever at most one workgroup dimension is larger than 1, such as `@workgroup_size(1, 1, 64)`. By @DouglasDwyer in [#XXXXX](https://github.com/gfx-rs/wgpu/pull/XXXXX).
 
 #### Validation
 

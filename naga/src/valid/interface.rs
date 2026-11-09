@@ -113,8 +113,8 @@ pub enum VaryingError {
     },
     #[error("`@blend_src` can only be used on struct members, not directly on entry point I/O")]
     BlendSrcNotOnStructMember,
-    #[error("Workgroup size is multi dimensional, `@builtin(subgroup_id)` and `@builtin(subgroup_invocation_id)` are not supported.")]
-    InvalidMultiDimensionalSubgroupBuiltIn,
+    #[error("Workgroup size has more than one dimension larger than 1, `@builtin(subgroup_id)` is not supported.")]
+    InvalidMultiDimensionalSubgroupId,
     #[error("The `@per_primitive` attribute can only be used in fragment shader inputs or mesh shader primitive outputs")]
     InvalidPerPrimitive,
     #[error("Non-builtin members of a mesh primitive output struct must be decorated with `@per_primitive`")]
@@ -280,12 +280,10 @@ impl VaryingContext<'_> {
                     return Err(VaryingError::UnsupportedCapability(required));
                 }
 
-                if matches!(
-                    built_in,
-                    crate::BuiltIn::SubgroupId | crate::BuiltIn::SubgroupInvocationId
-                ) && ep.workgroup_size[1..].iter().any(|&s| s > 1)
+                if built_in == crate::BuiltIn::SubgroupId
+                    && ep.workgroup_size.iter().filter(|&&s| s > 1).count() > 1
                 {
-                    return Err(VaryingError::InvalidMultiDimensionalSubgroupBuiltIn);
+                    return Err(VaryingError::InvalidMultiDimensionalSubgroupId);
                 }
 
                 let (visible, type_good) = match built_in {
